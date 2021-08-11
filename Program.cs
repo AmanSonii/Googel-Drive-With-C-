@@ -12,64 +12,76 @@ namespace Googel_Drive
     {
         static void Main(string[] args)
         {
-            string credPath = @"D:\StorePath\";
-            UserCredential credential;
-            string[] scopes = {
-            "https://www.googleapis.com/auth/photoslibrary.sharing",
-            "https://www.googleapis.com/auth/photoslibrary.readonly"
-         };
-            string UserName = "amansoni887127@gmail.com";
-
-
-            using (var stream = new FileStream("client-secret.json", FileMode.Open, FileAccess.Read))
+            try
             {
-                credential = GoogleWebAuthorizationBroker.AuthorizeAsync(
-                    GoogleClientSecrets.Load(stream).Secrets,
-                   new[] { DriveService.Scope.Drive },
-                    UserName,
-                    CancellationToken.None,
-                    new FileDataStore("Drive.Api.Auth.Store")).Result;
+                UserCredential credential;
+
+                string UserName = "amansoni887127@gmail.com";                
+
+                LogMessage("Service Started");
+
+                using (var stream = new FileStream("client-secret.json", FileMode.Open, FileAccess.Read))
+                {
+                    credential = GoogleWebAuthorizationBroker.AuthorizeAsync(
+                        GoogleClientSecrets.Load(stream).Secrets,
+                       new[] { DriveService.Scope.Drive },
+                        UserName,
+                        CancellationToken.None,
+                        new FileDataStore("Drive.Api.Auth.Store")).Result;
+                }
+
+                LogMessage("Authentication Done");
+
+                var service = new DriveService(new BaseClientService.Initializer
+                {
+                    HttpClientInitializer = credential
+                });
+
+                Console.WriteLine("Enter filename to upload on google drive");
+
+                var fileName = Console.ReadLine();
+
+                LogMessage($"File Name is {fileName}");
+
+                uploadFileOnGoogleDrive(service, fileName);
+
+                Console.WriteLine("Hello World!");
             }
-            var service = new DriveService(new BaseClientService.Initializer
+            catch(Exception e)
             {
-                HttpClientInitializer = credential
-            });
-
-            uploadFile(service, @"D:\Aman Projects\desk\columndesign.html", "");
-
-            Console.WriteLine("Hello World!");
+                LogMessage(e.Message);
+            }
+            
         }
 
-        public static Google.Apis.Drive.v3.Data.File uploadFile(DriveService _service, string _uploadFile, string _parent, string _descrp = "Uploaded with .NET!")
+        public static void uploadFileOnGoogleDrive(DriveService _service, string _uploadFile)
         {
             if (System.IO.File.Exists(_uploadFile))
             {
                 Google.Apis.Drive.v3.Data.File body = new Google.Apis.Drive.v3.Data.File();
-                body.Name = System.IO.Path.GetFileName(_uploadFile);
-                body.Description = _descrp;                
-                body.MimeType = GetMimeType(_uploadFile);
-                // body.Parents = new List<string> { _parent };// UN comment if you want to upload to a folder(ID of parent folder need to be send as paramter in above method)
-                byte[] byteArray = System.IO.File.ReadAllBytes(_uploadFile);
-                System.IO.MemoryStream stream = new System.IO.MemoryStream(byteArray);
+                body.Name = System.IO.Path.GetFileName(_uploadFile + DateTime.Now);
+                var mimeType = GetMimeType(_uploadFile);
+                body.MimeType = mimeType;
+                byte[] byteArray = File.ReadAllBytes(_uploadFile);
+                var stream = new MemoryStream(byteArray);
                 try
                 {
-                    FilesResource.CreateMediaUpload request = _service.Files.Create(body, stream, GetMimeType(_uploadFile));
+                    FilesResource.CreateMediaUpload request = _service.Files.Create(body, stream, mimeType);
                     request.SupportsTeamDrives = true;
-                    // You can bind event handler with progress changed event and response recieved(completed event)
-
-                    request.Upload();
-                    return request.ResponseBody;
+                     request.Upload();
+                    var response =  request.ResponseBody;
+                    Console.WriteLine("Upload Completed!");
+                    LogMessage($"Upload Completed for {_uploadFile}");
                 }
                 catch (Exception e)
                 {
-                    // MessageBox.Show(e.Message, "Error Occured");
-                    return null;
+                    Console.WriteLine(e);
+                    LogMessage(e.Message);
                 }
             }
             else
             {
-                // MessageBox.Show("The file does not exist.", "404");
-                return null;
+                Console.WriteLine("File Doesn't exists!");
             }
         }
 
@@ -81,6 +93,33 @@ namespace Googel_Drive
                 mimeType = regKey.GetValue("Content Type").ToString(); 
             
             return mimeType; 
+        }
+
+        private static void LogMessage(string message)
+        {
+           
+                var folderName = Path.GetDirectoryName(System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName);
+                
+                var fileName = string.Format("{0}.txt", DateTime.Now.ToString("MMddyyyy"));
+                fileName = "Logs" + "_" + fileName;
+
+                if (!Directory.Exists(folderName))
+                    Directory.CreateDirectory(folderName);
+
+                var fs = new FileStream(@"D:\Aman Projects\" + fileName, FileMode.Append);
+
+                var str = new StreamWriter(fs);
+                str.AutoFlush = true;
+                str.WriteLine("Time: " + DateTime.Now);
+                str.WriteLine(message);
+                //str.WriteLine(Environment.NewLine);
+                str.WriteLine("========================================================================================");
+
+                str.Flush();
+                str.Close();
+                fs.Close();
+            
+            
         }
 
     }
